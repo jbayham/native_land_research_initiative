@@ -19,7 +19,7 @@ options(scipen=999)
 
 ```{r project_setup, message = FALSE, warning = FALSE, include=FALSE}
 library(pacman)
-p_load(tidyverse,conflicted,knitr,scales,broom,fixest,stargazer,
+p_load(tidyverse,conflicted,data.table,knitr,scales,broom,fixest,stargazer,
        janitor,ggridges,cowplot)
 
 conflict_prefer("filter", "dplyr")
@@ -27,6 +27,9 @@ conflict_prefer("select", "dplyr")
 
 source("support_functions.R")
 
+if(!dir.exists("ps_fig")){
+  dir.create("ps_fig")
+}
 ### Load datasets
 data_long_m1 <- read_rds("data_long.rds")
 data_long_m1_full <- read_rds("data_long_all.rds")
@@ -689,7 +692,7 @@ model.shell <- vector("list",4)
 dep.var <- "heatdays_mean"
 
 model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
-write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/heat_var.csv")
+fwrite(as_tibble(model.shell[[1]]$cov),"ps_fig/heat_var.csv")
 model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
 model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
 # model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
@@ -735,7 +738,7 @@ model.shell <- vector("list",4)
 dep.var <- "precip"
 
 model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
-write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/precip_var.csv")
+fwrite(as_tibble(model.shell[[1]]$cov),"ps_fig/precip_var.csv")
 model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
 model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
 # model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
@@ -758,7 +761,7 @@ model.shell <- vector("list",4)
 dep.var <- "whp"
 
 model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
-write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/whp_var.csv")
+fwrite(as_tibble(model.shell[[1]]$cov),"ps_fig/whp_var.csv")
 model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
 model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
 # model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
@@ -853,7 +856,7 @@ model.shell <- vector("list",3)
 dep.var <- "BasinPortion"
 
 model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
-write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/og_var.csv")
+fwrite(as_tibble(model.shell[[1]]$cov),"ps_fig/og_var.csv")
 model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
 model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
 # model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
