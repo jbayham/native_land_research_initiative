@@ -1,0 +1,1069 @@
+---
+title: "Appendix A: Results"
+author: ""
+#date: "`r format(Sys.time(), '%B %d, %Y')`"
+header-includes:
+   - \usepackage{rotating, graphicx}
+output: 
+  pdf_document:
+    keep_tex: true
+---
+
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999)
+
+
+```
+
+```{r project_setup, message = FALSE, warning = FALSE, include=FALSE}
+library(pacman)
+p_load(tidyverse,conflicted,knitr,scales,broom,fixest,stargazer,
+       janitor,ggridges,cowplot)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+source("support_functions.R")
+
+### Load datasets
+data_long_m1 <- read_rds("data_long.rds")
+data_long_m1_full <- read_rds("data_long_all.rds")
+
+### Subset OK and nonOK tribal areas
+data_long_m2_noOK <- read_rds("data_long_nonOK.rds")
+data_long_m3_OK <- read_rds("data_long_OK.rds")
+
+### subset to T1 and T2
+df_all_t1 <- filter(data_long_m1_full, time == "time 1")
+df_all_t2 <- filter(data_long_m1_full, time == "time 2")
+
+### Subset T1 only and T2 only
+df_t1 <- filter(data_long_m1, time == "time 1")
+df_t2 <- filter(data_long_m1, time == "time 2")
+
+### Subset by tribe for KS test
+data_t1and2_long_bytribe <- read_rds("data_t1and2_long_bytribe.rds")
+df_t1_bytribe <- filter(data_t1and2_long_bytribe, time == "time 1")
+df_t2_bytribe <- filter(data_t1and2_long_bytribe, time == "time 2")
+
+```
+
+\newpage
+
+# Introduction
+
+The objective of this supplement is to provide detail on the analysis of land characteristics in the historical and present-day time periods.  We begin by describing the data used to assess the differences in land characteristics across the two time periods.  We then detail the methods used to compare the characteristics across time along a suite of characteristics: climate, agricultural viability, mineral access, and proximity to federal lands.  Finally, we present the results of our analyses as well as assess the robustness of the results.
+
+
+
+# Data Descriptions
+
+We focus on land characteristics that are either durable over long time periods or not heavily impacted by the human inhabitants of the land.  We divide the characteristics into categories: climate, mineral resource access, and national lands. The set of climate characteristics consist of: number of extreme temperature days, drought, precipitation, and a measure of wildfire hazard potential. The set of agricultural viability characteristics include: elevation, ruggedness, and soil organic carbon. The set of mineral resource access characteristics include: access to oil and gas basins, oil production, and gas production. Finally, we assess the proximity of historical and present-day land to federal lands. The following sections describe the data sources and any processing to construct the variables for analysis.
+
+For historical time periods, we use county and county equivalents (CCE) as described in the manuscript. In the present-day time periods, we use census native areas polygons, which is the finest-grained unique geographic unit of analysis used by the U.S. Census Bureau, composed of tribal census blocks and block groups that can be aggregated to the tribe level (U.S. Census Bureau, 2018).  While multiple tribes may have occupied the same CCE area in the historical period, the present day boundaries are mutually exclusive. We aggregate across CCEs and census native areas to produce a dataset where the unit of observation is tribe and time period.
+
+Table \ref{tab:sum_full} contains summary statistics for the dataset used in the analyses.  However, there are several instances where a tribe is present in only the present-day set or the historical set.  We also present the summary statistics of a dataset with only tribes present in both periods (Table \ref{tab:sum_both}).  While the number of observations is clearly smaller in the dataset with tribes present in both periods, the distribution of the datasets is very similar suggesting that these tribes who enter or exit the dataset are not systematically different from those in both periods with regard to our land characteristics.
+
+
+
+## Heat
+We construct a metric following Dahl et al.'s measure of the average number of days per year between 1971 to 2000 with a Heat Index greater than 100 degrees Fahrenheit (Dahl et al. 2019). To do so, we use the daily maximum temperature gridded (4km resolution) across the continental US from gridMET (Abatzoglou, 2013). For each grid cell, we aggregate the number of days in a year that exceed 100 degrees Fahrenheit. We then calculate the mean of hot days over all grid cells contained in the polygon, and finally, over the years of 1979-2000, we use the average number of mean hot days per year for each tribe in historical and present-day time periods.
+
+
+## Drought
+We measure drought conditions using the Palmer Drought Severity Index (PDSI). The PDSI is a unitless measure that indicates the departure from average soil moisture conditions.  Values below -4 indicate extreme drought while values higher than 4 indicate abundant moisture. We gather weekly PDSI measures gridded (4km resolution) across the continental US from gridMET (Abatzoglou, 2013).  First, we construct weekly PDSI averages using GIS to spatially intersect CCE or census tribal area boundaries with gridded PDSI.  Second, we calculate annual averages of weekly drought for each tribe from 1980 to 2020. 
+ 
+ 
+## Precipitation
+Oregon State University's PRISM Climate Group calculates the annual average precipitation (millimeters) over 30-year time periods. We use data that is calculated between 1981 and 2010 (PRISM Climate Group, ND). We use a raster with a 4km extent, which we subset to the area of each polygon. The precipitation used for each tribe is the the mean value found in each cell contained within an area boundary, weighted by the fraction of grid cell area within the tribal area boundary.
+
+
+## Wildfire Hazard Potential
+A changing climate is expected to alter wildfire behavior in the US, and particularly in the Western US (Abazoglou and Williams, 2016; Westerling et al. 2006).  We construct a measure of wildfire risk using a gridded (270 meter) index called Wildfire Hazard Potential (WHP) (Dillon, 2018).  The WHP is a discrete scale from 1 (very low fire hazard potential) to 5 (very high hazard potential) designed to inform fuel planning efforts.  We choose this measure because it synthesizes many ecological, geographic, and atmospheric factors into a single index. We calculate the mean WHP of all grid cells within all of a tribes CCEs or census native areas.
+
+
+## Elevation
+We extract elevation data from an open-source digital elevation model (DEM) accessed via the elevatr package in R (Hollister and Shah, 2017).  The data sources for the package are high resolution gridded elevation estimates from the U.S. Geological Survey’s Global Multi-resolution Terrain Elevation Data 2010 (GMTED2010) and Amazon Web Service's Mapzen Terrain Tiles (U.S. Geological Survey and National Geospatial Intelligence Agency, 2010). The DEM contains elevation in meters at 100 meter resolution across the US.  We calculate the average elevation across all pixels in the historical or present-day land area to construct a mean elevation.
+
+
+## Ruggedness
+We build a ruggedness index based on the digital elevation model used to construct the elevation metric. According to the *raster* package documentation in R (Hijmans, 2020), the Terrain Ruggedness Index is “... the mean of the absolute differences between the value of a cell [elevation] and the value of its 8 surrounding cells (Wilson et al., 2007).”  The ruggedness is calculated at approximately 100 meter resolution for every CCE or census native area. For each polygon, we extract the mean Terrain Ruggedness Index for all of a tribe's lands for consistency with other measurements in the analysis.
+
+
+## Soil Organic Carbon 
+Ramcharan et. al. (2017) utilize random forest and gradient boosting algorithms to predict soil properties across the United States (Ramcharan et al. 2017), creating a spatially explicit  dataset over the contiguous U.S., gridded at a 100m resolution. We report changes in soil organic carbon (SOC), between historical and present-day lands in this appendix. However, soil health - and proxies for it, such as SOC - is dynamically influenced by the interaction between natural processes and human activities (Stevens, 2018; Haddaway et al 2017). For this reason, the measure itself is not sufficiently durable over time to be an appropriate selection for our primary research design, and is therefore excluded from the manuscript. We include results in the appendix as a starting point for future research which may investigate soil- and agriculture-focused research questions in greater depth.
+
+We follow the data processing technique described by Kane et al. (2020). We first stack the rasters for SOC parts per mil at 5, 15, and 30 cm. Then we intersect the raster stack with the relevant spatial polygons, and for each CCE or census tribal area regress the SOC levels in parts per mil on the depth to derive a linear relationship between depth and SOC. We add the estimated intercept to 15 times the estimated coefficient on depth to get an interpolated value of SOC at 15cm. Finally we divide by 10 to convert to a percentage, and take the mean across all of a tribes historical or present-day land holdings.
+ 
+ 
+## Oil and Gas Basins
+The U.S. Energy Information Administration provides a map of sedimentary basin boundaries within the continental United States (U.S. Energy Information Administration, n.d.). Using this map, we construct a variable of the portion of land within tribal land area that overlaps an oil or gas basin. 
+
+
+## Oil and Gas Production
+The U.S. Geological Survey reports all known well locations across the continental United States between 1859 and 2005. The mapped area is divided into one-quarter square mile grid cells, where cells with wells are coded as either predominantly oil-producing, gas-producing, both oil- and gas-producing, or the wells are dry or their production status is unknown (Biewick, 2008). To create a measure of oil production, we first construct an indicator for each cell if there has ever been active production on that cell over the 146-year period.  We then calculate the portion of a tribe's unique land that has at any point been coded as oil-producing or both oil- and gas-producing of a tribal area. We create a corresponding measure of gas production by similarly aggregating the gas-producing and both oil- and gas-producing cells.
+
+
+## Federal Lands
+The U.S. Geological Survey's Protected Lands Database of the U.S. (PAD-US) is a spatial inventory of all formally protected lands (U.S. Geological Survey (USGS) Gap Analysis Project (GAP), 2018). We select only lands protected by the Federal Government (e.g. national parks, national forests, etc.). We buffer the tribal land to include the land within 160 km (~100 miles), and find the fraction of land federally protected within the buffered polygon. 
+
+## Final Dataset Construction
+Each variable described above is constructed at the CCE (historical) and census native area (present-day).  These units are not comparable.  We aggregate the dataset to the tribe level in historical and present-day by calculating the mean of the CCEs or census native areas associated with a tribe.
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+
+for_summary <- vector("list",2)
+
+for_summary[[1]] <- data_long_m1 %>% 
+  select(`Days over 100F`=heatdays_mean,
+         `Drought`=drought_mean,
+         `Precipitation`=precip,
+         `Wildfire Hazard Potential`=whp,
+         `Elevation`=elevation_mean,
+         `Ruggedness`=tri_mean,
+         `Soil Organic Carbon`=SOC_perc,
+         `Oil and Gas Basin`=BasinPortion,
+         `Oil Production`=AllArea_OilPortion,
+         `Gas Production`=AllArea_GasPortion,
+         `Fraction Federal Land`=PADPortion) %>%
+  as.data.frame()
+
+for_summary[[2]] <- data_long_m1_full %>% 
+  select(`Days over 100F`=heatdays_mean,
+         `Drought`=drought_mean,
+         `Precipitation`=precip,
+         `Wildfire Hazard Potential`=whp,
+         `Elevation`=elevation_mean,
+         `Ruggedness`=tri_mean,
+         `Soil Organic Carbon`=SOC_perc,
+         `Oil and Gas Basin`=BasinPortion,
+         `Oil Production`=AllArea_OilPortion,
+         `Gas Production`=AllArea_GasPortion,
+         `Fraction Federal Land`=PADPortion) %>%
+  as.data.frame()
+
+
+stargazer(for_summary[[1]],
+          digits = 2,
+          title = "Tribes Found in Both Present-day and Historical Time Periods",
+          header = F,
+          label = "tab:sum_full")
+
+stargazer(for_summary[[2]],
+          digits = 2,
+          title = "All Tribes",
+          header = F,
+          label = "tab:sum_both")
+
+```
+
+
+
+
+# Methods
+
+We create density plots of each variable with data indicated by vertical lines below the density to describe the distribution of each tribe's land characteristics in the historical and present-day time periods  (Figure 1).  The mean of the historical and present-day distribution is indicated by a bold vertical line. We test for differences in the historical and present-day distributions using a Kolmogorov-Smirnov (KS) test.  We conduct KS tests for three versions of the data: (1) for tribes that are present in the data in historical and present-day periods, (2) for all tribes, including those that were only present in historical or present-day periods, and (3) for tribes that are present in the data in historical and present-day periods, disaggregated to census area (CCE in the historical period, and census native area in the present-day). We use the distribution visualization and Kolmogorov-Smirnov tests to provide a qualitative and statistical analysis of the distributions of characteristics in both time periods.
+
+To complement the analysis of distributions, we employ several statistical methods to test whether the means of characteristics of the historical lands differ from the present-day lands.  Our primary method to compare the historical and present-day areas is a linear regression of the land characteristic per tribe and time period as a function of a binary indicator for present-day lands (and an intercept), which amounts to simple ANOVA test of whether the means are equal in the historical and present-day land.  The intercept in these models is the mean of the land characteristic in the historical period while the present-day coefficient represents the change from the historical to the present-day period.  All statistical tests are conducted using cluster-robust standard errors, which account for heteroskedasticity and serial correlation that may exist within a tribe.  Observations within a tribe may be correlated because of the proximity of census native areas within a tribe's total historical or present-day extent.  
+
+We are conducting multiple hypothesis tests throughout our analysis.  Therefore, we adjust our criteria for inference using the Bonferroni adjustment to reduce the likelihood that we fail to reject a null hypothesis by chance.  Specifically we adjust for 84 hypothesis tests resulting in an alpha=0.05 cutoff of 0.0005952381.  We note that this is likely conservative since three of the four specifications in our regression tables are simply robustness tests.
+
+We assess the robustness of our estimate using several alternative model specifications.  In each table below, we present a set of the following models:
+
+- OLS: Ordinary Least Squares (OLS) model using only data on tribes with records in the historical and present-day periods.  
+
+- OLS | All Tribes: OLS model using all available data, including observations for tribes that are only found in either historical or present-day periods.
+
+- OLS | Excluding OTSA: OLS model using only data on tribes with records in the historical and present-day periods, excluding tribes whose present-day land is classified as an Oklahoma Tribal Statistical Area.
+<!-- - OLS | Only OTSA: OLS model using only data on tribes with records in the historical and present-day periods, limited to tribes whose present-day land is classified as an Oklahoma Tribal Statistical Area. -->
+
+- Poisson: a regression when the dependent variable is an integer (e.g., days).
+
+- Tribe FE: an OLS regression with tribe fixed effects.  The fixed effect regression estimates tribe-specific means in the historical period, but a common coefficient on the difference between the historical and present-day periods.  This model would control for unobserved factors within a tribe that may influence any relocation policy and thus the characteristics of the CCEs or census native areas in both the historical and present-day periods.  
+
+- BEZI: zero-inflated Beta regression when the dependent variable is bounded between zero and one (e.g., portion).
+
+# Changes in Land Area
+
+\begin{table}[!h]
+\caption{\label{tab:}Change in Land Area per Tribe}
+\centering
+\fontsize{9.5}{11.5}\selectfont
+\begin{tabular}[t]{lcc}
+\toprule
+  & Historical (sq. km) & Present Day (sq. km)\\
+\midrule
+Sum (Non-Coextensive) & 7,011,450 & 426,598 \\
+Sum (Coextensive) & 54,919,152 & 606,604\\
+Minimum & 538 & 0\\
+25th Percentile & 14,678 & 20\\
+Mean & 144,524 & 2,720\\
+Median & 46,195 & 208\\
+75th Percentile & 107,913 & 1,872\\
+Maximum & 15,057,083 & 62,566\\
+\bottomrule
+\multicolumn{3}{l}{\textit{Note: }}\\
+\multicolumn{3}{l}{Land area is calculated by tribe and in some cases includes coextensive}\\
+\multicolumn{3}{l}{areas where more than one tribe share a location.The minimum land}\\
+\multicolumn{3}{l}{area in the present day is rounded from .02.}\\
+\end{tabular}
+\end{table}
+
+# Distribution Results | KS Tests and Density Plots
+In Table 4, we find that the distributions for each land characteristic (except Wildfire Hazard Potential) are statistically different in historical and present-day land. These findings are robust for all subsets of the data (tribes found in both time periods, all tribes, and tribes found in both time periods, dissaggregated to census areas). Aside from the D statistic for Wildfire Hazard Potential and Fraction of Federal Lands, all D-statistics are significant at p < 0.0006 Bonferroni adjusted alpha = 0.05. 
+
+Figure 1 depicts the difference in the distributions between time periods.  The mean precipitation declines in the present-day relative to the historical lands.  While most of the means (indicated by the vertical bar) are similar across historical and present-day lands, the distributions are notably different.  Notably, the mass of the present-day distributions of extreme heat, wildfire risk, and fraction of federal lands shifts to higher (less desirable) levels.  The distribution of oil and gas basins in the present-day period is more concentrated at $0$ and $1$ when compared with the historical period.  Lastly, the oil and gas production as well as the fraction of federal lands variables are heavily concentrated on $0$ with a small number of tribes in present-day with much higher portions of land with oil and gas wells and federal lands.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+# Precipitation
+ks_precip <- ks.test(df_all_t1$precip,
+                     df_all_t2$precip)
+ks_precip2 <- ks.test(df_t1$precip, 
+                      df_t2$precip)
+ks_precip3 <- ks.test(df_t1_bytribe$precip, 
+                      df_t2_bytribe$precip)
+
+# Presence of oil/gas basin (binary)
+ks_og_basin <- ks.test(df_all_t1$BasinPortion, 
+                       df_all_t2$BasinPortion)
+ks_og_basin2 <- ks.test(df_t1$BasinPortion, 
+                        df_t2$BasinPortion)
+ks_og_basin3 <- ks.test(df_t1_bytribe$BasinPortion, 
+                        df_t2_bytribe$BasinPortion)
+
+# Oil Production
+ks_oil <- ks.test(df_all_t1$AllArea_OilPortion, 
+                  df_all_t2$AllArea_OilPortion)
+ks_oil2 <- ks.test(df_t1$AllArea_OilPortion, 
+                   df_t2$AllArea_OilPortion)
+ks_oil3 <- ks.test(df_t1_bytribe$AllArea_OilPortion, 
+                   df_t2_bytribe$AllArea_OilPortion)
+
+# Gas production
+ks_gas <- ks.test(df_all_t1$AllArea_GasPortion, 
+                  df_all_t2$AllArea_GasPortion)
+ks_gas2 <- ks.test(df_t1$AllArea_GasPortion, 
+                   df_t2$AllArea_GasPortion)
+ks_gas3 <- ks.test(df_t1_bytribe$AllArea_GasPortion, 
+                   df_t2_bytribe$AllArea_GasPortion)
+
+# Heat
+ks_heat <- ks.test(df_all_t1$heatdays_mean, 
+                   df_all_t2$heatdays_mean)
+ks_heat2 <- ks.test(df_t1$heatdays_mean, 
+                    df_t2$heatdays_mean)
+ks_heat3 <- ks.test(df_t1_bytribe$heatdays_mean, 
+                    df_t2_bytribe$heatdays_mean)
+
+# Drought
+ks_drought <- ks.test(df_all_t1$drought_mean, 
+                      df_all_t2$drought_mean)
+ks_drought2 <- ks.test(df_t1$drought_mean, 
+                       df_t2$drought_mean)
+ks_drought3 <- ks.test(df_t1_bytribe$drought_mean, 
+                       df_t2_bytribe$drought_mean)
+
+# Wildfire risk
+ks_fire <- ks.test(df_all_t1$whp,
+                   df_all_t2$whp)
+ks_fire2 <- ks.test(df_t1$whp, 
+                    df_t2$whp)
+ks_fire3 <- ks.test(df_t1_bytribe$whp, 
+                    df_t2_bytribe$whp)
+
+# Elevation
+ks_elevation <- ks.test(df_all_t1$elevation_mean,
+                        df_all_t2$elevation_mean)
+ks_elevation2 <- ks.test(df_t1$elevation_mean, 
+                         df_t2$elevation_mean)
+ks_elevation3 <- ks.test(df_t1_bytribe$elevation_mean, 
+                         df_t2_bytribe$elevation_mean)
+
+# TRI (ruggedness)
+ks_tri <- ks.test(df_all_t1$tri_mean,
+                  df_all_t2$tri_mean)
+ks_tri2 <- ks.test(df_t1$tri_mean, 
+                   df_t2$tri_mean)
+ks_tri3 <- ks.test(df_t1_bytribe$tri_mean, 
+                   df_t2_bytribe$tri_mean)
+
+# Fraction federal lands
+ks_fed <- ks.test(df_all_t1$PADPortion,
+                  df_all_t2$PADPortion)
+ks_fed2 <- ks.test(df_t1$PADPortion,
+                   df_t2$PADPortion)
+# ks_fed3 <- ks.test(df_t1_bytribe$PADPortion,
+#                    df_t2_bytribe$PADPortion)
+
+# SOC
+ks_soc <- ks.test(df_all_t1$SOC_perc, 
+                  df_all_t2$SOC_perc)
+ks_soc2 <- ks.test(df_t1$SOC_perc, 
+                   df_t2$SOC_perc)
+ks_soc3 <- ks.test(df_t1_bytribe$SOC_perc, 
+                   df_t2_bytribe$SOC_perc)
+
+
+# Combine all tests into table
+ks_results <- tibble(
+  Variable = c("Days over 100F",
+               "Drought",
+               "Precipitation", 
+               "Wildfire Hazard Potential",
+               "Elevation",
+               "Ruggedness",
+               "Soil Organic Carbon",
+               "Oil and Gas Basin | Portion",
+               "Oil Production",
+               "Gas Production",
+               "Fraction Federal Lands"),
+  D_sub = c(paste(round(ks_heat2$statistic, digits = 3), 
+                  ifelse(ks_heat2$p.value < 0.000595, "***", ifelse(ks_heat2$p.value < 0.05, "**", ifelse(ks_heat2$p.value < 0.1, "*", "")))),
+            paste(round(ks_drought2$statistic, digits = 3), 
+                  ifelse(ks_drought2$p.value < 0.000595, "***", ifelse(ks_drought2$p.value < 0.05, "**", ifelse(ks_drought2$p.value < 0.1, "*", "")))),
+            paste(formatC(ks_precip2$statistic, format='f', digits = 3), 
+                  ifelse(ks_precip2$p.value < 0.000595, "***", ifelse(ks_precip2$p.value < 0.05, "**", ifelse(ks_precip2$p.value < 0.1, "*", "")))),
+            paste(round(ks_fire2$statistic, digits = 3), 
+                  ifelse(ks_fire2$p.value < 0.000595, "***", ifelse(ks_fire2$p.value < 0.05, "**", ifelse(ks_fire2$p.value < 0.1, "*", "")))),
+            paste(round(ks_elevation2$statistic, digits = 3), 
+                  ifelse(ks_elevation2$p.value < 0.000595, "***", ifelse(ks_elevation2$p.value < 0.05, "**", ifelse(ks_elevation2$p.value < 0.1, "*", "")))),
+            paste(round(ks_tri2$statistic, digits = 3), 
+                  ifelse(ks_tri2$p.value < 0.000595, "***", ifelse(ks_tri2$p.value < 0.05, "**", ifelse(ks_tri2$p.value < 0.1, "*", "")))),
+            paste(round(ks_soc2$statistic, digits = 3), 
+                  ifelse(ks_soc2$p.value < 0.000595, "***", ifelse(ks_soc2$p.value < 0.05, "**", ifelse(ks_soc2$p.value < 0.1, "*", "")))),
+            paste(round(ks_og_basin2$statistic, digits = 3), 
+                  ifelse(ks_og_basin2$p.value < 0.000595, "***", ifelse(ks_og_basin2$p.value < 0.05, "**", ifelse(ks_og_basin2$p.value < 0.1, "*", "")))),
+            paste(round(ks_oil2$statistic, digits = 3), 
+                  ifelse(ks_oil2$p.value < 0.000595, "***", ifelse(ks_oil2$p.value < 0.05, "**", ifelse(ks_oil2$p.value < 0.1, "*", "")))),
+            paste(round(ks_gas2$statistic, digits = 3), 
+                  ifelse(ks_gas2$p.value < 0.000595, "***", ifelse(ks_gas2$p.value < 0.05, "**", ifelse(ks_gas2$p.value < 0.1, "*", "")))),
+            paste(round(ks_fed2$statistic, digits = 3), 
+                  ifelse(ks_fed2$p.value < 0.000595, "***", ifelse(ks_fed2$p.value < 0.05, "**", ifelse(ks_fed2$p.value < 0.1, "*", ""))))),
+  D_all = c(paste(round(ks_heat$statistic, digits = 3), 
+                  ifelse(ks_heat$p.value < 0.000595, "***", ifelse(ks_heat$p.value < 0.05, "**", ifelse(ks_heat$p.value < 0.1, "*", "")))),
+            paste(round(ks_drought$statistic, digits = 3), 
+                  ifelse(ks_drought$p.value < 0.000595, "***", ifelse(ks_drought$p.value < 0.05, "**", ifelse(ks_drought$p.value < 0.1, "*", "")))),
+            paste(formatC(ks_precip$statistic, format='f', digits = 3), 
+                  ifelse(ks_precip$p.value < 0.000595, "***", ifelse(ks_precip$p.value < 0.05, "**", ifelse(ks_precip$p.value < 0.1, "*", "")))),
+            paste(round(ks_fire$statistic, digits = 3), 
+                  ifelse(ks_fire$p.value < 0.000595, "***", ifelse(ks_fire$p.value < 0.05, "**", ifelse(ks_fire$p.value < 0.1, "*", "")))),
+            paste(round(ks_elevation$statistic, digits = 3), 
+                  ifelse(ks_elevation$p.value < 0.000595, "***", ifelse(ks_elevation$p.value < 0.05, "**", ifelse(ks_elevation$p.value < 0.1, "*", "")))),
+            paste(round(ks_tri$statistic, digits = 3), 
+                  ifelse(ks_tri$p.value < 0.000595, "***", ifelse(ks_tri$p.value < 0.05, "**", ifelse(ks_tri$p.value < 0.1, "*", "")))),
+            paste(round(ks_soc$statistic, digits = 3),
+                  ifelse(ks_soc$p.value < 0.000595, "***", ifelse(ks_soc$p.value < 0.05, "**", ifelse(ks_soc$p.value < 0.1, "*", "")))),
+            paste(round(ks_og_basin$statistic, digits = 3),
+                  ifelse(ks_og_basin$p.value < 0.000595, "***", ifelse(ks_og_basin$p.value < 0.05, "**", ifelse(ks_og_basin$p.value < 0.1, "*", "")))),
+            paste(round(ks_oil$statistic, digits = 3), 
+                  ifelse(ks_oil$p.value < 0.000595, "***", ifelse(ks_oil$p.value < 0.05, "**", ifelse(ks_oil$p.value < 0.1, "*", "")))),
+            paste(round(ks_gas$statistic, digits = 3), 
+                  ifelse(ks_gas$p.value < 0.000595, "***", ifelse(ks_gas$p.value < 0.05, "**", ifelse(ks_gas$p.value < 0.1, "*", "")))),
+            paste(round(ks_fed$statistic, digits = 3), 
+                  ifelse(ks_fed$p.value < 0.000595, "***", ifelse(ks_fed$p.value < 0.05, "**", ifelse(ks_fed$p.value < 0.1, "*", ""))))),
+  D_tribe = c(paste(round(ks_heat3$statistic, digits = 3), 
+                  ifelse(ks_heat3$p.value < 0.000595, "***", ifelse(ks_heat3$p.value < 0.05, "**", ifelse(ks_heat3$p.value < 0.1, "*", "")))),
+            paste(round(ks_drought3$statistic, digits = 3), 
+                  ifelse(ks_drought3$p.value < 0.000595, "***", ifelse(ks_drought3$p.value < 0.05, "**", ifelse(ks_drought3$p.value < 0.1, "*", "")))),
+            paste(formatC(ks_precip3$statistic, format='f', digits = 3), 
+                  ifelse(ks_precip3$p.value < 0.000595, "***", ifelse(ks_precip3$p.value < 0.05, "**", ifelse(ks_precip3$p.value < 0.1, "*", "")))),
+            paste(round(ks_fire3$statistic, digits = 3), 
+                  ifelse(ks_fire3$p.value < 0.01, "***", ifelse(ks_fire3$p.value < 0.05, "**", ifelse(ks_fire3$p.value < 0.1, "*", "")))),
+            paste(round(ks_elevation3$statistic, digits = 3), 
+                  ifelse(ks_elevation3$p.value < 0.000595, "***", ifelse(ks_elevation3$p.value < 0.05, "**", ifelse(ks_elevation3$p.value < 0.01, "*", "")))),
+            paste(round(ks_tri3$statistic, digits = 3), 
+                  ifelse(ks_tri3$p.value < 0.000595, "***", ifelse(ks_tri3$p.value < 0.05, "**", ifelse(ks_tri3$p.value < 0.1, "*", "")))),
+            paste(round(ks_soc3$statistic, digits = 3), 
+                  ifelse(ks_soc3$p.value < 0.000595, "***", ifelse(ks_soc3$p.value < 0.05, "**", ifelse(ks_soc3$p.value < 0.1, "*", "")))),
+            paste(round(ks_og_basin3$statistic, digits = 3), 
+                  ifelse(ks_og_basin3$p.value < 0.000595, "***", ifelse(ks_og_basin3$p.value < 0.05, "**", ifelse(ks_og_basin3$p.value < 0.1, "*", "")))),
+            paste(round(ks_oil3$statistic, digits = 3), 
+                  ifelse(ks_oil3$p.value < 0.000595, "***", ifelse(ks_oil3$p.value < 0.05, "**", ifelse(ks_oil3$p.value < 0.1, "*", "")))),
+            paste(round(ks_gas3$statistic, digits = 3), 
+                  ifelse(ks_gas3$p.value < 0.000595, "***", ifelse(ks_gas3$p.value < 0.05, "**", ifelse(ks_gas3$p.value < 0.1, "*", "")))),
+            "---"))
+            #paste(round(ks_fed3$statistic, digits = 3), 
+            #      ifelse(ks_fed3$p.value < 0.000595, "***", ifelse(ks_fed3$p.value < 0.05, "**", ifelse(ks_fed3$p.value < 0.1, "*", ""))))))
+
+# kable table of KS tests
+kable_ks_tests <- kable(ks_results, format = "latex", booktabs = TRUE,
+                        digits = 3, align="c", linesep = "",
+                        caption = "Kolmogorov-Smirnov Tests | By Tribe",
+                        col.names = c("Variable", "D Statistic", "D Statistic", "D Statistic")) %>%
+  kableExtra::kable_styling(font_size = 9.5) %>%
+  kableExtra::add_header_above(header = c(" "=1,"Tribes with \nT1 and T2\n Landholdings"=1,  "All Tribes"=1,   "Tribes with \nT1 and T2\n Landholdings \n By Census Area"=1),
+                   align = "c",
+                   bold = TRUE) %>%
+  kableExtra::footnote(general = c("*p < 0.1; **p < 0.05; ***Bonferroni = 0.0005952381")) %>%
+  kableExtra::column_spec(2:4, width = "1.5in") 
+
+print(kable_ks_tests)
+```
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE,fig.cap = "Density of characteristics in historical and present-day periods.  The small vertical lines (rug) indicate data points and the bold vertical line indicates the mean", fig.height=8}
+df_plot <- data_long_m1 %>% # only tribes with T1 and T2
+  mutate(heatdays_mean_log = log(heatdays_mean + 1)) %>%
+  dplyr::select(tribe, time, 
+                `Days over 100F`=heatdays_mean,
+                'Log Days over 100F'= heatdays_mean_log,
+                `Drought`=drought_mean,
+                `Precipitation`=precip,
+                `Wildfire Hazard Potential`=whp,
+                `Elevation`=elevation_mean,
+                `Ruggedness`=tri_mean,
+                `Soil Organic Carbon`=SOC_perc,
+                `Oil and Gas Basin`=BasinPortion,
+                `Oil Production`=AllArea_OilPortion,
+                `Gas Production`=AllArea_GasPortion,
+                `Fraction Federal Land`=PADPortion) %>%
+  pivot_longer(cols = c("Days over 100F", "Log Days over 100F", "Drought", 
+                        "Precipitation", "Wildfire Hazard Potential", "Elevation", "Ruggedness",
+                        "Soil Organic Carbon", "Fraction Federal Land", "Oil and Gas Basin", 
+                        "Oil Production", "Gas Production"), 
+               names_to = "variable", 
+               values_to = "value") %>% filter(!is.na(value))
+
+# color pal
+my_pal <- c("#994F00", "#006CD1")
+
+# Extreme Heat - Days over 100 - Log
+heat_plot <- ggplot(data = subset(df_plot, variable == "Log Days over 100F"), 
+                    aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = .65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height=.000, yoffset= -.00),
+                      alpha=.5,show.legend = T) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +   coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Extreme Heat (log scale)")
+
+
+# Fire Risk
+fire_plot <- ggplot(data = subset(df_plot, variable == "Wildfire Hazard Potential"),
+                    aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .000, yoffset= -.00),
+                      alpha=.5,show.legend = T) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical", "Present Day")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical", "Present Day")) + 
+  scale_x_continuous(breaks=seq(0, 7, 1)) +
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Wildfire Risk") 
+
+# Oil and Gas Basin
+og_plot <- ggplot(data = subset(df_plot, variable == "Oil and Gas Basin"), 
+                  aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .75, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = .65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height=.00, yoffset= -.0),
+                      alpha=.5,show.legend = T) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,1.0)) + # c(-.25,1.25)
+  scale_x_continuous(breaks=c(0,.25,.5,.75,1)) +
+  ylab("") +
+  xlab("Oil and Gas Basins") 
+
+# Precipitation - Log 
+precip_plot <- ggplot(data = subset(df_plot, variable == "Precipitation"), 
+                      aes(x=log(value), y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 3, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .00, yoffset= .02),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +   coord_cartesian(expand = FALSE, clip="off") +
+  ylab("") +
+  xlab("Precipitation (log scale)")
+
+# Drought plot
+drought_plot <- ggplot(data = subset(df_plot, variable == "Drought"), 
+                       aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 3, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .0, yoffset= .0),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="off") +
+  ylab("") +
+  xlab("Drought")
+
+# Elevation Plot
+elevation_plot <- ggplot(data = subset(df_plot, variable == "Elevation"), 
+                         aes(x=log(value +1), y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 3, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .00, yoffset= .02),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="off") +
+  ylab("") +
+  xlab("Elevation (log scale)")
+
+# Ruggedness plot
+ruggedness_plot <- ggplot(data = subset(df_plot, variable == "Ruggedness"), 
+                          aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 7, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .000, yoffset= -.000),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Ruggedness")
+
+
+# SOC Plot
+soc_plot <- ggplot(data = subset(df_plot, variable == "Soil Organic Carbon"), 
+                   aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .000, yoffset= -.00),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Soil Organic Carbon")
+
+
+# Federal Lands plot
+fed_plot <- ggplot(data = subset(df_plot, variable == "Fraction Federal Land"), 
+                   aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .00, yoffset= -.0),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Fraction of Federal Lands")
+
+
+# Oil production
+oil_plot <- ggplot(data = subset(df_plot, variable == "Oil Production"), 
+                   aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .011, yoffset= -.00),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Oil Production")
+
+
+# Gas production
+gas_plot <- ggplot(data = subset(df_plot, variable == "Gas Production"),
+                   aes(x=value, y="", fill = time, color = time)) +
+  geom_density_ridges(jittered_points = TRUE, scale = .95, rel_min_height = .01,
+                      point_shape = "|", point_size = 6, size = 0.65,
+                      quantile_lines=TRUE, quantile_fun=function(x,...)mean(x),
+                      position = position_points_jitter(height = .011, yoffset= -.00),
+                      alpha=.5,show.legend = T, na.rm = TRUE) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", axis.title.y=element_text(family="Helvetica", size=10), 
+        axis.title.x=element_text(family="Helvetica", size=12, face="bold"),
+        axis.text.x= element_text(family="Helvetica", size=10),
+        legend.text=element_text(size=12, family="Helvetica")) +
+  scale_fill_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) +
+  scale_color_manual(name="", values = my_pal, labels = c("Historical Lands", "Present Day Lands")) + 
+  coord_cartesian(expand = FALSE, clip="on", xlim=c(0,NA)) +
+  ylab("") +
+  xlab("Gas Production")
+
+
+# Final plot for appendix
+all_plots_app <- plot_grid(heat_plot + theme(legend.position="none"),
+                       drought_plot + theme(legend.position="none"),
+                       precip_plot + theme(legend.position="none"),
+                       fire_plot + theme(legend.position="none"),
+                       elevation_plot + theme(legend.position="none"),
+                       ruggedness_plot + theme(legend.position="none"),
+                       soc_plot + theme(legend.position="none"),
+                       og_plot + theme(legend.position="none"),
+                       oil_plot + theme(legend.position="none"),
+                       gas_plot + theme(legend.position="none"),
+                       fed_plot + theme(legend.position="none"),
+                       labels = c("A","B","C","D", "E", "F", "G", "H", "I", "J", "K"),
+                       nrow = 4,
+                       # hjust = 0,
+                       label_size=8)
+
+legend <- get_legend(
+  # create some space to the left of the legend
+  fire_plot + #grabbing legend from fire_plot
+    guides(color = guide_legend(nrow = 2)) +
+    theme(legend.position = "bottom")
+)
+
+final_plot_app <- plot_grid(all_plots_app, legend, ncol = 1, rel_heights= c(1,.1))
+final_plot_app
+
+```
+
+# Regression Results
+
+This section presents the results of the analysis along with several robustness checks.  Throughout the text 95% confidence intervals are presented as [lower,upper]. 
+
+
+## Heat
+
+The results in Table \ref{tab:heat} suggest that the present-day lands experience almost 2 more days 1.81 [0.49, 3.13] in excess of 100 degrees per year compared to historical lands. The OLS and Poisson models show a statistically significant difference between the historical and present-day lands at the $\alpha=0.05$ level.  However, the difference is not statistically significant when all tribes in both periods are included, or when the OTSA tribes are exluded. The coefficients of the Poisson model are not directly comparable to the OLS estimates, but can be transformed for interpretation. The model suggests that historical lands experience about 1.64 (5.14 = exp(1.64)) days a year over 100 degrees, while the present-days lands experience 6.95 (5.81 = exp(1.64 + 0.30)) days over 100.  The increase in heat days is approximately 35% based on the point estimate. 
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "heatdays_mean"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/heat_var.csv")
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- glm_clustered(dep.var,df=data_long_m1,family = "poisson")
+
+sg_table(model.shell,
+         dep.name = "Days per Year in excess of 100 degrees F",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Poisson"),
+         label = "tab:heat",
+         title = "Extreme Heat")
+
+```
+
+
+## Drought
+
+Table \ref{tab:drought} presents the results of the analysis of differences in drought (PDSI) across the historical and present-day lands.  Negative values indicate drought while positive values indicate wetter conditions.  The coefficients on the intercept indicate that historical lands are characterized by recent dryer conditions.  The mean PDSI increases in present-day indicating more soil moisture in present-day relative to the slightly dryer conditions on the historical lands.  This results is consistent across specifications.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "drought_mean"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Mean PDSI ",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         label = "tab:drought",
+         title = "Drought")
+```
+
+
+## Precipitation
+
+Table \ref{tab:precip} presents the results of the analysis of precipitation across the historical and present-day lands. The coefficients on Historical across models range from 871.85 mm to 905.5 mm of precipitation each year on historical lands. We see a significant decrease in the precipitation experienced, estimated to be between 177.19 mm less per year, from the OLS model with all tribes, to 245.6 mm less per year, from the fixed effect model. Using the estimates from the primary regression (1), on average tribes experience 22.8% less annual rainfall in present-day lands than they did in historical lands.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "precip"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/precip_var.csv")
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Mean Annual Precipitation (millimeters)",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         label = "tab:precip",
+         title = "Precipitation")
+```
+
+
+## Wildfire Hazard Potential
+
+Table \ref{tab:whp} presents the results of the analysis of wildfire hazard potential (WHP) across the historical and present-day lands. The results suggest that present-day lands are similar to historical lands, with some evidence that the mean has fallen slightly (model (2), $-0.18^{**}$).  This result does not imply that no tribes experienced increases in WHP.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "whp"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/whp_var.csv")
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Mean Wildfire Hazard Potential (index 1=low to 5=high)",
+         label = "tab:whp",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         title = "Wildfire Hazard Potential")
+```
+
+
+## Elevation
+
+The results in Table \ref{tab:elevation} suggest that the elevation of present-day lands is less than historical lands.  The coefficients on Historical indicate that the historical lands have an average CCE elevation of 738.44 meters. The results indicate that the present-day lands are an average of 155.65 meters lower than the historical lands, a 21% decrease. We find similar results with the OLS model with all tribes, the model excluding OTSA, and the Tribe FE model.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "elevation_mean"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Elevation (meters)",
+         label = "tab:elevation",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         title = "Elevation")
+```
+
+
+
+## Ruggedness
+
+The results in Table \ref{tab:tri} suggest that present-day lands are less rugged than historical lands.  The coefficients on Historical indicate that the historical lands have an average CCE ruggedness index of 9.96, which is generally considered flat. The results indicate that the present-day lands have an average ruggedness index 2.84 points lower than the historical lands, a 28.5% decrease. This finding is consistent across all model specifications.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "tri_mean"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Ruggedness (index > 0)",
+         label = "tab:tri",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         title = "Terrain Ruggedness Index")
+```
+
+
+
+## Soil Organic Carbon
+
+The results in Table \ref{tab:soc} provide no evidence that the percent organic carbon is different in present-day lands compared to historical lands. Historical lands had a SOC of 4, and any decrease suggested by the estimated signs of the coefficients on change are statistically insignificant. We do not report these results in the manuscript because the measure of organic carbon is not durable over time (see notes in Data Description).
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",4)
+dep.var <- "SOC_perc"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+model.shell[[4]] <- feols_clustered(dep.var,df=data_long_m1)
+
+sg_table(model.shell,
+         dep.name = "Soil Organic Carbon",
+         label = "tab:soc",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}","Tribe FE"),
+         title = "Soil Organic Carbon")
+```
+
+
+
+## Oil and Gas Basins
+
+We evaluate access to oil and gas based on the likelihood that a tribe's CCEs lie over subsurface oil and gas. We estimate decreases in access to subsurface oil and gas in Table \ref{tab:og_basins_ols}, with a decrease of 4% [-0.07,-0.005] in the primary model, and 4% [-0.07,-0.01] in the model excluding OTSA land. In the model with all tribes, we estimate a decrease of 2% [-0.05, 0.02], but it is not statistically different from zero at alpha=0.10. 
+<!-- Estimating OLS with a binary dependent variable is known as a linear probability model (LPM).  The LPM has two well-known shortcomings: 1) bias when the mass of the distribution lies outside of the unit interval, and 2) heteroskedasticity.  Since we estimate all models with robust standard errors, we correct for heteroskedasticity.   -->
+
+We estimate a zero inflated beta regression (Table \ref{tab:bezi}) to assess the robustness of the difference between present-day and historical lands. The Nu function estimates the binary component with positive values indicating an increased likelihood of zero. The positive estimated present-day change of the Nu Function suggests that tribes are more likely to have no access to subsurface oil and gas. However, the positive estimated present-day change of the Mu function indicates that for tribes that have some access to subsurface oil and gas, they are likely to have more in present-day.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",3)
+dep.var <- "BasinPortion"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+write_csv(as_tibble(model.shell[[1]]$cov),"ps_fig/og_var.csv")
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+
+sg_table(model.shell,
+         dep.name = "Portion Land With Subsurface Oil and Gas [0,1]",
+         label = "tab:og_basins_ols",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}"),
+         title = "Oil and Gas Basins")
+```
+
+
+
+## Oil Production
+
+We compare the portion of land used in oil production between historical and present-day lands in Table \ref{tab:og_oil_ols}, with model specifications providing little evidence that there is change in oil production on present-day land. We see a significant decrease only in the model excluding OTSA of 1% [-0.02,-0.01] in production. 
+
+Table \ref{tab:bezi} provides greater granularity on the change in oil production, with tribe land being more likely to not have any oil production (positive Mu Change), but greater amount of oil production if a land is to have any oil production (positive Nu Change).
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",3)
+dep.var <- "AllArea_OilPortion"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+
+sg_table(model.shell,
+         dep.name = "Portion Land Used in Oil Production [0,1]",
+         label = "tab:og_oil_ols",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}"),
+         title = "Oil Production")
+```
+
+
+
+## Gas Production
+
+We compare the portion of land used in gas production between historical and present-day lands in Table \ref{tab:og_gas_ols}, with model specifications providing little evidence that there is change in gas production on present-day land. We do not see a significant decrease in production in any model.
+
+Table \ref{tab:bezi} provides greater granularity on the change in oil production, with tribe land being more likely to not have any oil production (positive Mu Change), but a greater amount of oil production if a land is to have any oil production (positive Nu Change).
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",3)
+dep.var <- "AllArea_GasPortion"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+
+sg_table(model.shell,
+         dep.name = "Portion Land Used in Oil Production [0,1]",
+         label = "tab:og_gas_ols",
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}"),
+         title = "Gas Production")
+```
+
+
+
+## Federal Lands
+
+Finally, we study the difference between proximity to federal lands during the historical and present-day periods (Table \ref{tab:pad_ols}).  The results suggest that there is no statistically significant difference between the mean share of federal land within 160km (about 100 miles) of the historical or present-day lands.  Again, this result applies to the mean of the distribution and not the individual tribes, which may experience changes.
+
+We estimate two additional models on the datasets in Table \ref{tab:bezi}. In both the BEZI and logit models, we do not find a significant difference between the amount of federal lands within historical and present land boundaries.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis'}
+model.shell <- vector("list",2)
+dep.var <- "PADPortion"
+
+model.shell[[1]] <- ols_clustered(dep.var,df=data_long_m1,clust.var = c("tribe"))
+model.shell[[2]] <- ols_clustered(dep.var,df=data_long_m1_full,clust.var = c("tribe"))
+model.shell[[3]] <- ols_clustered(dep.var,df=data_long_m2_noOK,clust.var = c("tribe"))
+# model.shell[[4]] <- ols_clustered(dep.var,df=data_long_m3_OK,clust.var = c("tribe"))
+
+sg_table(model.shell,
+         dep.name = "Proximity to Federal Lands [0,1]",
+         label = "tab:pad_ols",
+         #column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}","\\shortstack{OLS \\\\ Excluding OTSA}"),
+         column.labels = c("OLS","\\shortstack{OLS \\\\ All Tribes}"),
+         title = "Federal Lands")
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results='asis',eval=FALSE}
+bezi_m1 <- data_long_m1 %>%
+  mutate(BasinPortion = ifelse(BasinPortion >= 1, .99999, BasinPortion),
+         AllArea_OilPortion = ifelse(AllArea_OilPortion >= 1, .99999, AllArea_OilPortion),
+         AllArea_GasPortion = ifelse(AllArea_GasPortion >= 1, .99999, AllArea_GasPortion),
+         PADPortion = ifelse(PADPortion >= 1, .99999, PADPortion))
+
+con<-gamlss::gamlss.control(gd.tol=1e-4, c.crit = 1e-4, nu.step = 0.0001)
+
+bezi_model_basins <- gamlss::gamlss(BasinPortion ~ time, family = "BEZI",
+                                nu.formula = BasinPortion ~ time,
+                                data = na.omit(bezi_m1), trace = F)
+bezi_model_oil <- gamlss::gamlss(AllArea_OilPortion ~ time, family = "BEZI",
+                                nu.formula = AllArea_OilPortion ~ time,
+                                data = na.omit(bezi_m1), trace = F)
+bezi_model_gas <- gamlss::gamlss(AllArea_GasPortion ~ time, family = "BEZI",
+                                nu.formula = AllArea_GasPortion ~ time,
+                                data = na.omit(bezi_m1), trace = F)
+logit <- glm_clustered(dep.var = "PADPortion",
+                       df=data_long_m1,family = "binomial")
+
+bezi_model_pad <- gamlss::gamlss(PADPortion ~ time, family = "BEZI",
+                                data = na.omit(bezi_m1), trace = F,
+                                control=con)
+#
+
+summary(bezi_model_basins)
+summary(bezi_model_oil)
+summary(bezi_model_gas)
+summary(bezi_model_pad)
+summary()
+sg_table(list(logit),dep.name = "fed")
+#
+texreg::screenreg(list(bezi_model_basins,bezi_model_oil,bezi_model_gas,bezi_model_pad),
+       custom.model.names = c("Basins","Oil","Gas","PAD"),
+       digits = 3,
+       ci.force = T
+       )
+
+
+texreg::screenreg(list(bezi_model_basins,bezi_model_oil,bezi_model_gas),
+       custom.model.names = c("Basins","Oil","Gas"),
+       digits = 3,
+       ci.force = T
+       )
+```
+\begin{table}[!htbp] \centering 
+\footnotesize
+  \caption{BEZI Results} 
+  \label{tab:bezi} 
+\begin{tabular}{l c c c c c}
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{BEZI Results} \\ 
+\hline 
+ & Oil and Gas Basins & Oil Production & Gas Production & Federal Lands & Federal Lands \\
+ & (1) & (2) & (3) & (4) & (5) \\
+\hline  
+\textbf{Mu Function} \\
+\hspace{2mm} Historical (Intercept)  & $-0.233^{*}$ & $-2.644^{***}$  & $-2.787^{***}$  &  $-1.487^{***}$& \\
+                             & $(-0.472;\ 0.007)$ &  $(-2.892;\ -2.396)$ &  $(-3.027;\ -2.548)$  &  $(-1.623;\ -1.351)$& \\[1ex] 
+\hspace{2mm} Present-day Change     & $1.826^{***}$     &   $0.652^{***}$         & $1.106^{***}$   &   $-0.121$& \\
+                             & $(1.414;\ 2.238)$   &   $(0.327;\ 0.977)$   &   $(0.778;\ 1.434)$   & $(-0.297;\ 0.055)$ &\\[1ex] 
+\textbf{Nu Function}  \\
+\hspace{2mm} Historical (Intercept)    & $-0.328^{**}$ &   $-0.709^{***}$        & $-1.177^{***}$   & &  \\
+                                & $(-0.615;\ -0.040)$ &   $(-1.011;\ -0.407)$ &   $(-1.511;\ -0.843)$    &  & \\[1ex] 
+\hspace{2mm} Present-day Change     & $1.263^{***}$     &   $1.985^{***}$         & $2.621^{***}$   &   & \\
+                              & $(0.852;\ 1.674)$   &   $(1.545;\ 2.425)$   &   $(2.147;\ 3.095)$   & & \\[1ex] 
+\textbf{Logit}  \\
+\hspace{2mm} Historical (Intercept)    &  &     &    &   &  $-1.493^{***}$ \\
+                                     &  &   &  &   &  $(-1.61;\ -1.38)$ \\[1ex] 
+\hspace{2mm} Present-day Change     &    &    &       &    & $0.01$   \\
+                                    &  &   &   &  & $(-0.06;\ 0.08)$ \\[1ex] 
+\hline \\[-1.8ex]
+Obs.           & 411              & 411              &  411   &    411   &    440              \\
+
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{5}{l}{{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.0005952381}}
+\end{tabular}
+
+
+\end{table} 
+
+
+\newpage
+# References
+
+Abatzoglou, J. T. (2013). Development of gridded surface meteorological data for ecological applications and modelling. International Journal of Climatology, 33(1), 121–131. https://doi.org/10.1002/joc.3413
+
+Abatzoglou, J. T., & Williams, A. P. (2016). Impact of anthropogenic climate change on wildfire across western US forests. Proceedings of the National Academy of Sciences, 113(42), 11770–11775. https://doi.org/10.1073/pnas.1607171113
+
+Biewick, Laura R.H.. (2008). Areas of historical oil and gas exploration and production in the United States: U.S. Geological Survey Digital Data Series DDS-69-Q.
+
+Dahl, Kristina, Erika Spanger-Siegfried, Rachel Licker, Astrid Caldas, John Abatzoglou, Nicholas Mailloux, Rachel Cleetus, Shana Udvardy, Juan Declet-Barreto, and Pamela Worth. (2019). Killer Heat in the United States: Climate Choices and the Future of Dangerously Hot Days. Cambridge, MA: Union of Concerned Scientists.
+
+Dillon, Gregory K. (2018). Wildfire Hazard Potential (WHP) for the conterminous United States (270-m GRID), version 2018 classified. 2nd Edition. Fort Collins, CO: Forest Service Research Data Archive. https://doi.org/10.2737/RDS-2015-0046-2
+
+Haddaway, Neal R., Katarina Hedlund, Louise E. Jackson, Thomas Kätterer, Emanuele Lugato, Ingrid K. Thomsen, Helene B. Jørgensen, and Per-Erik Isberg. 2017. “How Does Tillage Intensity Affect Soil Organic Carbon? A Systematic Review.” Environmental Evidence 6 (1): 30. https://doi.org/10.1186/s13750-017-0108-9.
+
+Hijmans, Robert J. (2020). raster: Geographic Data Analysis and Modeling. R package version 3.1-5. https://CRAN.R-project.org/package=raster
+
+Hollister, J.W., Tarak Shah (2017). elevatr: Access Elevation Data from Various APIs. https://CRAN.R-project.org/package=elevatr.
+
+Kane, D., Bradford, M. A., Fuller, E., Oldfield, E. E., & Wood, S. A. (2020). Soil organic matter effects on US maize production and crop insurance payouts under drought. Working Paper. 10.31220/agriRxiv.2020.00018
+
+PRISM Climate Group, Northwest Alliance for Computational Science and Engineering, PRISM Climate Data, (available at http://prism.oregonstate.edu/).
+
+Ramcharan, Amanda, Tomislav Hengl, Travis Nauman, Colby Brungard, Sharon Waltman, Skye Wills, and James Thompson. 2018. “Soil Property and Class Maps of the Conterminous United States at 100-Meter Spatial Resolution.” Soil Science Society of America Journal 82 (1): 186–201. https://doi.org/10.2136/sssaj2017.04.0122.
+
+Stevens, Andrew W. 2018. “Review: The Economics of Soil Health.” Food Policy 80 (October): 1–9. https://doi.org/10.1016/j.foodpol.2018.08.005.
+
+U.S. Census Bureau, 2018. TIGER/Line Shapefiles and TIGER/Line Files Technical Documentation: Chapter 3-Geographic Shapefile Concepts Overview. Available at: https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2018/TGRSHP2018_TechDoc_Ch3.pdf 
+
+U.S. Department of Agriculture Economic Research Service. (2019). County-level Oil and Gas Production in the U.S.. Available at: https://www.ers.usda.gov/data-products/county-level-oil-and-gas-production-in-the-us/. 
+
+U.S. Geological Survey (USGS) Gap Analysis Project (GAP). (2018). Protected Areas Database of the United States (PAD-US): U.S. Geological Survey data release, https://doi.org/10.5066/P955KPLE.
+
+U.S. Geological Survey (USGS) and National Geospatial Intelligence Agency (NGA). (2010). Global Multi-resolution Terrain Elevation Data 2010. Available at: https://www.usgs.gov/core-science-systems/eros/coastal-changes-and-impacts/gmted2010?qt-science_support_page_related_con=0#qt-science_support_page_related_con
+
+U.S. Energy Information Administration, Oil and Gas Exploration, Resources, and Production. (available at https://www.eia.gov/maps/maps.htm).
+
+Westerling, A. L., Hidalgo, H. G., Cayan, D. R., & Swetnam, T. W. (2006). Warming and Earlier Spring Increase Western U.S. Forest Wildfire Activity. Science, 313(5789), 940–943. https://doi.org/10.1126/science.1128834
+
+Wilson, M.F.J., O'Connell, B., Brown, C., Guinan, J.C., Grehan, A.J., 2007. Multiscale terrain analysis of multibeam bathymetry data for habitat mapping on the continental slope. Marine Geodesy 30: 3-35.
+
+
+
+

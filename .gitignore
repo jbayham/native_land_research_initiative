@@ -40,3 +40,4 @@ vignettes/*.pdf
 
 *.html
 *.Rproj
+01_data/*
