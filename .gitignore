@@ -41,6 +41,7 @@ vignettes/*.pdf
 *.html
 *.Rproj
 01_data/*
+output/*
 *.log
 *.tex
 03_analysis/01_appendix_A_files/*
