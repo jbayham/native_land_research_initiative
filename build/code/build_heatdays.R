@@ -5,20 +5,22 @@ p_load(tidyverse,lubridate,data.table,sf,ncdf4,janitor,raster,exactextractr,furr
 
 conflict_prefer("select", "dplyr")
 
-if(!dir.exists("01_data/cache/temperature")) dir.create("01_data/cache/temperature")
+if(!dir.exists("build/cache/temperature")) dir.create("build/cache/temperature")
+
+source("build/code/download_gridmet.R")
 #################
 #Download the data
 gridmetr_download(variables="tmmx",years = c(1979:2021))
 
 #################
 #Read in the tribal boundaries file
-aiannh <- st_read("01_data/census_2020/tl_2020_us_aiannh/tl_2020_us_aiannh.shp") %>%
+aiannh <- st_read("build/inputs/census_2020/tl_2020_us_aiannh/tl_2020_us_aiannh.shp") %>%
   clean_names() %>%
   st_transform(4326)
 
 
 #Open the connection to the netCDF file
-nc <- nc_open("01_data/gridmet/tmmx/tmmx_1979.nc")
+nc <- nc_open("build/inputs/gridmet/tmmx/tmmx_1979.nc")
 
 
 #Extract lat and lon vectors
@@ -33,7 +35,7 @@ nc.coords <- expand.grid(lon=nc_lon,lat=nc_lat) %>%
 readin.proj=4326 #because it works with the lat and lons provided
 
 #Alt method reading as raster then using exact_extract
-tmmx <- raster("01_data/gridmet/tmmx/tmmx_1979.nc")
+tmmx <- raster("build/inputs/gridmet/tmmx/tmmx_1979.nc")
 crs(tmmx)<-CRS("+init=epsg:4326")
 #mapview::mapview(tmmx)
 
@@ -68,7 +70,7 @@ file.list <- expand.grid("tmmx",1979:2020,stringsAsFactors = F) %>%
          file.name = str_c(var,"_",year,".nc")) %>% 
   arrange(var) 
 
-allheat <- paste0("01_data/gridmet/tmmx/",file.list$file.name)
+allheat <- paste0("build/inputs/gridmet/tmmx/",file.list$file.name)
 heat1 <- allheat[1]
 
 plan(multisession(workers = 15))
@@ -111,7 +113,7 @@ future_map(allheat,
       .(heatdays = sum(mtemp > 310.928, na.rm = T))]   #310.928 ~ 100 F
     
     
-  write_rds(var.block,paste0("01_data/cache/temperature/temp_",str_sub(heat1,-7,-4),".rds"))
+  write_rds(var.block,paste0("build/cache/temperature/temp_",str_sub(heat1,-7,-4),".rds"))
 
 },.progress = T)
 
@@ -119,9 +121,9 @@ future_map(allheat,
 ############################################################
 #Read in all individual years
 
-heatdays <- dir("01_data/cache/temperature",full.names = F) %>%
+heatdays <- dir("build/cache/temperature",full.names = F) %>%
   map_dfr(function(x){
-    out <- read_rds(str_c("01_data/cache/temperature/",x)) %>%
+    out <- read_rds(str_c("build/cache/temperature/",x)) %>%
       mutate(year=parse_number(x))
     })
 
